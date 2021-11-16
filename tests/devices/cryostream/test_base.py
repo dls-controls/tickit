@@ -5,7 +5,7 @@ from typing import Any, Dict
 import pytest
 from mock import Mock
 
-from tickit.devices.cryostream.base import CryostreamBase
+from tickit.devices.cryostream.base import CryostreamBase, cK
 from tickit.devices.cryostream.states import AlarmCodes, PhaseIds, RunModes
 from tickit.devices.cryostream.status import ExtendedStatus, Status
 
@@ -51,7 +51,7 @@ async def test_restart():
         ),
         pytest.param(
             {
-                "starting_temperature": 10000,
+                "starting_temperature": 10000 * cK,
                 "target_temperature": 90001,
                 "ramp_rate": 360,
                 "expected_phase_id": PhaseIds.RAMP.value,
@@ -62,7 +62,7 @@ async def test_restart():
         ),
         pytest.param(
             {
-                "starting_temperature": 10000,
+                "starting_temperature": 10000 * cK,
                 "target_temperature": 9000,
                 "ramp_rate": 361,
                 "expected_phase_id": PhaseIds.RAMP.value,
@@ -143,10 +143,10 @@ async def test_plat(test_params):
 @pytest.mark.asyncio
 async def test_hold():
     cryostream_base = CryostreamBase()
-    cryostream_base.gas_temp = 28000
+    cryostream_base.gas_temp = 2800 * cK
     await cryostream_base.hold()
     final_temperature = cryostream_base.update_temperature(100e9)
-    assert final_temperature == 28000
+    assert final_temperature == 2800
     assert cryostream_base.run_mode == RunModes.RUN.value
     assert cryostream_base.phase_id == PhaseIds.HOLD.value
 
@@ -156,7 +156,7 @@ async def test_cool():
     cryostream_base = CryostreamBase()
     cryostream_base.ramp = Mock(cryostream_base.ramp)
     starting_temperature = cryostream_base.gas_temp
-    target_temperature = starting_temperature - 10 * 5
+    target_temperature = starting_temperature - 50 * cK
     await cryostream_base.cool(target_temperature)
     assert cryostream_base.run_mode == RunModes.RUN.value
     assert cryostream_base.phase_id == PhaseIds.COOL.value
@@ -178,7 +178,7 @@ async def test_cool():
         ),
         pytest.param(
             {
-                "initial_gas_temp": CryostreamBase.default_temp_shutdown - 100,
+                "initial_gas_temp": CryostreamBase.default_temp_shutdown - 100 * cK,
                 "expected_run_mode": RunModes.SHUTDOWNFAIL.value,
                 "expected_gas_flow": {5, 10},
             },
@@ -215,7 +215,7 @@ async def test_end(test_params: Dict[str, Any]):
         ),
         pytest.param(
             {
-                "initial_gas_temp": CryostreamBase.default_temp_shutdown - 100,
+                "initial_gas_temp": CryostreamBase.default_temp_shutdown - 100 * cK,
                 "expected_run_mode": RunModes.SHUTDOWNFAIL.value,
             },
             id="shutdown fails",
@@ -251,10 +251,10 @@ async def test_stop():
 @pytest.mark.asyncio
 async def test_turbo(test_params):
     cryostream_base = CryostreamBase()
-    cryostream_base.gas_temp = test_params["temp"]
+    cryostream_base.gas_temp = test_params["temp"] * cK
     await cryostream_base.turbo(1)
     assert cryostream_base.turbo_mode == 1
-    assert cryostream_base.gas_flow == test_params["expected_gas_flow"]
+    assert int(cryostream_base.gas_flow) == test_params["expected_gas_flow"]
 
 
 def test_update_temperature():

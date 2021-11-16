@@ -39,18 +39,19 @@ class CryostreamDevice(CryostreamBase):
                 change.
         """
         if self.phase_id in (PhaseIds.RAMP.value, PhaseIds.COOL.value):
-            self.gas_temp = self.update_temperature(time)
+            new_temperature: int = self.update_temperature(time)
+            self.set_gas_temp(new_temperature)
             return DeviceUpdate(
-                self.Outputs(temperature=self.gas_temp),
+                self.Outputs(temperature=self.get_gas_temp()),
                 SimTime(time + self.callback_period),
             )
         if self.phase_id == PhaseIds.PLAT.value:
             self.phase_id = PhaseIds.HOLD.value
             return DeviceUpdate(
-                self.Outputs(temperature=self.gas_temp),
+                self.Outputs(temperature=self.get_gas_temp()),
                 SimTime(time + int(self.plat_duration * 1e10)),
             )
-        return DeviceUpdate(self.Outputs(temperature=self.gas_temp), None)
+        return DeviceUpdate(self.Outputs(temperature=self.get_gas_temp()), None)
 
 
 class CryostreamAdapter(ComposedAdapter):

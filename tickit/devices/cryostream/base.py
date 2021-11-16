@@ -2,22 +2,29 @@ import logging
 from ctypes import c_short, c_ubyte, c_ushort
 from typing import Union
 
+from pint import UnitRegistry
+from pint.quantity import Quantity
+
 from tickit.devices.cryostream.states import AlarmCodes, PhaseIds, RunModes
 from tickit.devices.cryostream.status import ExtendedStatus, Status
 
 LOGGER = logging.getLogger(__name__)
 
+unit_registry = UnitRegistry()
+cK = unit_registry.centikelvin
+liters_per_minute = unit_registry.liters / unit_registry.minute
+
 
 class CryostreamBase:
     """A base class for cryostream device logic."""
 
-    min_temp: int = 8000  # cK
-    max_temp: int = 40000  # ck
+    min_temp: Quantity = 8000 * cK
+    max_temp: Quantity = 40000 * cK
     min_rate: int = 1
     max_rate: int = 360
     min_plat_duration: int = 1
     max_plat_duration: int = 1440
-    default_temp_shutdown: int = 30000
+    default_temp_shutdown: Quantity = 30000 * cK
     default_ramp_rate: int = 360
     random_value: int = 20  # for status packet unknown values
 
@@ -27,10 +34,10 @@ class CryostreamBase:
         self.phase_id: int = 0
         self.alarm_code: int = 0
         self.turbo_mode: int = 0
-        self.gas_temp: int = 30000
+        self.gas_temp: Quantity = 30000 * cK
         self.ramp_rate: int = 0
         self.gas_flow: int = 0
-        self._target_temp: int = 0
+        self._target_temp: Quantity = 0 * cK
         self.time_at_last_update: float = 0.0
 
     async def restart(self) -> None:
@@ -51,16 +58,16 @@ class CryostreamBase:
             ramp_rate (int): The rate at which the temperature should change.
             target_temp (int): The target temperature.
         """
+        target_temp_cK: Quantity = target_temp * cK
         if ramp_rate < self.min_rate or ramp_rate > self.max_rate:
             self.alarm_code = AlarmCodes.TEMP_CONTROL_ERROR
         else:
             self.ramp_rate = ramp_rate
 
-        if target_temp < self.min_temp or target_temp > self.max_temp:
+        if target_temp_cK < self.min_temp or target_temp_cK > self.max_temp:
             self.alarm_code = AlarmCodes.TEMP_CONTROL_ERROR
-            # note that the target temperature is not changed.
         else:
-            self._target_temp = target_temp
+            self._target_temp = target_temp_cK
 
         # Todo
         """
@@ -77,8 +84,8 @@ class CryostreamBase:
 
         if (
             self.phase_id == PhaseIds.COOL.value
-            or (self.turbo_mode == 1 and self._target_temp < 31000)
-            or self._target_temp < 9000
+            or (self.turbo_mode == 1 and self._target_temp < 31000 * cK)
+            or self._target_temp < 9000 * cK
         ):
             self.gas_flow = 10
         else:
@@ -115,8 +122,7 @@ class CryostreamBase:
         """
         self.run_mode = RunModes.RUN
         self.phase_id = PhaseIds.COOL.value
-        self._target_temp = target_temp
-        await self.ramp(self.default_ramp_rate, self._target_temp)
+        await self.ramp(self.default_ramp_rate, target_temp)
 
     async def end(self, ramp_rate: int) -> None:
         """Bring the gas temperature to 300 K at ramp rate, then halt and stop.
@@ -129,7 +135,7 @@ class CryostreamBase:
             RunModes.SHUTDOWNFAIL.value,
         ):
             self.phase_id = PhaseIds.END.value
-            await self.ramp(ramp_rate, self.default_temp_shutdown)
+            await self.ramp(ramp_rate, self.default_temp_shutdown.magnitude)
             if self.gas_temp == self.default_temp_shutdown:
                 self.gas_flow = 0
                 self.run_mode = RunModes.SHUTDOWNOK.value
@@ -144,7 +150,9 @@ class CryostreamBase:
         ):
             self.phase_id = PhaseIds.PURGE.value
             self.gas_flow = 0
-            await self.ramp(self.default_ramp_rate, self.default_temp_shutdown)
+            await self.ramp(
+                self.default_ramp_rate, self.default_temp_shutdown.magnitude
+            )
             self.phase_id = PhaseIds.PURGE.value
             if self.gas_temp == self.default_temp_shutdown:
                 self.run_mode = RunModes.SHUTDOWNOK.value
@@ -184,7 +192,7 @@ class CryostreamBase:
         """
         if turbo_on == 1:
             self.turbo_mode = 1
-            if self.gas_temp < 310:
+            if self.gas_temp < (310 * cK):
                 self.gas_flow = 10
             else:
                 self.gas_flow = 5
@@ -202,15 +210,15 @@ class CryostreamBase:
         """
         delta_time = (time - self.time_at_last_update) / 1e9
         difference = self._target_temp - self.gas_temp
-        if abs(self.gas_temp - self._target_temp) < 10:
+        if abs(self.gas_temp - self._target_temp) < (10 * cK):
             self.phase_id = PhaseIds.HOLD.value
-        delta_temp = self.gas_flow * delta_time
+        delta_temp = (self.gas_flow * delta_time) * cK
         if difference < 0:
             delta_temp = -delta_temp
-        self.gas_temp = int(self.gas_temp + delta_temp)
+        self.gas_temp = self.gas_temp + delta_temp
         self.time_at_last_update = time
 
-        return self.gas_temp
+        return int(self.gas_temp.magnitude)
 
     async def set_status_format(self, status_format: int) -> None:
         """Sets the status packet format.
@@ -229,7 +237,7 @@ class CryostreamBase:
                 run_mode=c_ubyte(self.run_mode).value,
                 phase_id=c_ubyte(self.phase_id).value,
                 ramp_rate=c_short(self.ramp_rate).value,
-                target_temp=c_ushort(self._target_temp).value,
+                target_temp=c_ushort(self._target_temp.magnitude).value,
                 evap_temp=c_ushort(22).value,
                 suct_temp=c_ushort(22).value,
                 remaining=c_ushort(88).value,
@@ -255,7 +263,7 @@ class CryostreamBase:
                 run_mode=c_ubyte(self.run_mode).value,
                 phase_id=c_ubyte(self.phase_id).value,
                 ramp_rate=c_short(self.ramp_rate).value,
-                target_temp=c_ushort(self._target_temp).value,
+                target_temp=c_ushort(self._target_temp.magnitude).value,
                 evap_temp=c_ushort(22).value,
                 suct_temp=c_ushort(22).value,
                 remaining=c_ushort(88).value,
@@ -278,10 +286,12 @@ class CryostreamBase:
                 time_to_fill=c_ushort(22).value,
                 total_hours=c_ushort(22).value,
             )
-            self.extended_status.gas_temp = c_ushort(self.gas_temp).value
+            self.extended_status.gas_temp = c_ushort(int(self.gas_temp.magnitude)).value
             self.extended_status.run_mode = c_ubyte(self.run_mode).value
             self.extended_status.phase_id = c_ubyte(self.phase_id).value
-            self.extended_status.target_temp = c_ushort(self._target_temp).value
+            self.extended_status.target_temp = c_ushort(
+                int(self._target_temp.magnitude)
+            ).value
             self.extended_status.ramp_rate = c_short(self.ramp_rate).value
             self.extended_status.gas_flow = c_ubyte(self.gas_flow).value
             self.extended_status.alarm_code = c_ubyte(self.alarm_code).value
@@ -317,3 +327,14 @@ class CryostreamBase:
 
         else:
             raise ValueError("Invalid status format parameter.")
+
+    def set_gas_temp(self, gas_temp: int) -> None:
+        """Set the gas temperature of the device. For testing purposes only."""
+        self.gas_temp = gas_temp * cK
+
+    def get_gas_temp(self) -> int:
+        """Get the gas temperature of the device.
+
+        Returns the gas temperature as an integer (value is stored as a pint.Quantity).
+        """
+        return int(self.gas_temp.magnitude)

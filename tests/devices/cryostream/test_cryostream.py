@@ -3,11 +3,13 @@ import logging
 import struct
 from typing import Optional
 
-import numpy as np
 import pytest
+from pint.quantity import Quantity
+from pytest import approx
 
 from tickit.core.device import DeviceUpdate
 from tickit.core.typedefs import SimTime
+from tickit.devices.cryostream.base import cK
 from tickit.devices.cryostream.cryostream import CryostreamDevice
 from tickit.devices.cryostream.states import PhaseIds
 from tickit.devices.cryostream.status import ExtendedStatus
@@ -25,7 +27,7 @@ def test_cryostream_constructor():
 
 
 def test_cryostream_update_hold(cryostream):
-    starting_temperature = cryostream.gas_temp
+    starting_temperature = cryostream.get_gas_temp()
     device_update: DeviceUpdate = cryostream.update(time=SimTime(1e9), inputs={})
     device_update.outputs["temperature"] == starting_temperature
 
@@ -33,8 +35,8 @@ def test_cryostream_update_hold(cryostream):
 @pytest.mark.asyncio
 async def test_cryostream_update_cool(cryostream: CryostreamDevice):
     starting_temperature = cryostream.gas_temp
-    target_temperature = starting_temperature - 50
-    await cryostream.cool(target_temperature)
+    target_temperature = starting_temperature - 50 * cK
+    await cryostream.cool(target_temperature.magnitude)
 
     time = SimTime(0)
     device_update: DeviceUpdate
@@ -50,15 +52,14 @@ async def test_cryostream_update_cool(cryostream: CryostreamDevice):
             time = time_update
 
     max_diff = 10
-    margin_of_error = np.array([+max_diff, -max_diff])
-    assert any(
-        (device_update.outputs["temperature"] + margin_of_error) == target_temperature
+    assert device_update.outputs["temperature"] == approx(
+        target_temperature, abs=max_diff
     )
 
 
 @pytest.mark.asyncio
 async def test_cryostream_update_end(cryostream: CryostreamDevice):
-    starting_temperature = cryostream.default_temp_shutdown - 100
+    starting_temperature: Quantity = cryostream.default_temp_shutdown - 100 * cK
     cryostream.gas_temp = starting_temperature
     await cryostream.end(cryostream.default_ramp_rate)
     assert cryostream.phase_id == PhaseIds.RAMP.value
@@ -77,15 +78,13 @@ async def test_cryostream_update_end(cryostream: CryostreamDevice):
             time = time_update
 
     max_diff = 10
-    target = cryostream.default_temp_shutdown
-    assert (
-        target - max_diff <= device_update.outputs["temperature"] <= target + max_diff
-    )
+    target_temp = cryostream.default_temp_shutdown.magnitude
+    assert device_update.outputs["temperature"] == approx(target_temp, abs=max_diff)
 
 
 @pytest.mark.asyncio
 async def test_cryostream_update_plat(cryostream: CryostreamDevice):
-    starting_temperature = cryostream.gas_temp
+    starting_temperature: int = cryostream.gas_temp.magnitude
     await cryostream.plat(5)
     assert cryostream.phase_id == PhaseIds.PLAT.value
 
