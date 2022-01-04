@@ -1,17 +1,21 @@
+import logging
 from dataclasses import dataclass, field, fields
 from enum import Enum
 from typing import Any, List
 
 from .eiger_schema import (
-    AccessMode,
-    field_config,
     ro_float,
     ro_str,
     rw_bool,
     rw_float,
+    rw_float_grid,
     rw_int,
     rw_str,
+    rw_uint_grid,
 )
+
+LOGGER = logging.getLogger(__name__)
+
 
 FRAME_WIDTH: int = 4148
 FRAME_HEIGHT: int = 4362
@@ -77,11 +81,10 @@ class EigerSettings:
     detector_number: str = field(default="EIGERSIM001", metadata=ro_str())
     detector_readout_time: float = field(default=0.01, metadata=rw_float())
     element: str = field(
-        default="Co", metadata=rw_str(allowed_values=[e.name for e in KA_Energy])
+        default="Co", metadata=rw_str(allowed_values=["", *(e.name for e in KA_Energy)])
     )
     flatfield: List[List[float]] = field(
-        default_factory=lambda: [[]],
-        metadata=field_config(value_type=AccessMode.FLOAT_GRID),
+        default_factory=lambda: [[]], metadata=rw_float_grid()
     )
     flatfield_correction_applied: bool = field(default=True, metadata=rw_bool())
     frame_time: float = field(default=0.12, metadata=rw_float())
@@ -96,8 +99,7 @@ class EigerSettings:
     phi_start: float = field(default=0.0, metadata=rw_float())
     photon_energy: float = field(default=6930.32, metadata=rw_float())
     pixel_mask: List[List[int]] = field(
-        default_factory=lambda: [[]],
-        metadata=field_config(value_type=AccessMode.UINT_GRID),
+        default_factory=lambda: [[]], metadata=rw_uint_grid()
     )
     pixel_mask_applied: bool = field(default=False, metadata=rw_bool())
     roi_mode: str = field(
@@ -112,7 +114,7 @@ class EigerSettings:
     )
     two_theta_increment: float = field(default=0.0, metadata=rw_float())
     two_theta_start: float = field(default=0.0, metadata=rw_float())
-    wavelength: float = field(default=1e-9, metadata=rw_float())
+    wavelength: float = field(default=1.0, metadata=rw_float())
     x_pixel_size: float = field(default=0.01, metadata=ro_float())
     x_pixels_in_detector: int = field(default=FRAME_WIDTH, metadata=rw_int())
     y_pixel_size: float = field(default=0.01, metadata=ro_float())
@@ -130,6 +132,36 @@ class EigerSettings:
     def __setitem__(self, key: str, value: Any) -> None:  # noqa: D105
         self.__dict__[key] = value
 
+        self._check_dependencies(key, value)
+
+    def _check_dependencies(self, key, value):
+
         if key == "element":
             self.photon_energy = getattr(KA_Energy, value).value
-            self.threshold_energy = 0.5 * self.photon_energy
+            self.wavelength = (1240 / self.photon_energy) / 10  # to convert to Angstrom
+            self._calc_threshold_energy()
+
+        elif key == "photon_energy":
+            self.element = ""
+
+            hc = 1240
+            self.wavelength = (hc / self.photon_energy) / 10  # to convert to Angstrom
+
+            self._calc_threshold_energy()
+
+        elif key == "wavelength":
+            self.element = ""
+
+            hc = 1240
+            self.photon_energy = hc / (self.wavelength * 10)  # to convert from Angstrom
+
+            self._calc_threshold_energy()
+
+        elif key == "count_time":
+            self.frame_time = self.count_time + self.detector_readout_time
+
+    def _calc_threshold_energy(self):
+
+        self.threshold_energy = 0.5 * self.photon_energy
+
+        LOGGER.warning("Flatfield not recalculated.")

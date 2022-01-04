@@ -19,6 +19,13 @@
             "args": ["all", "examples/configs/sunk-tcp.yaml"]
         },
         {
+            "name":"Eiger",
+            "type":"python",
+            "request":"launch",
+            "module":"tickit",
+            "args": ["all", "examples/configs/eiger.yaml"]
+        },
+        {
             "name":"Nested",
             "type":"python",
             "request":"launch",

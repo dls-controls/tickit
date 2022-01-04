@@ -1,5 +1,7 @@
 import pytest
 
+from tickit.core.device import DeviceUpdate
+from tickit.core.typedefs import SimTime
 from tickit.devices.eiger.eiger import EigerDevice
 from tickit.devices.eiger.eiger_status import State
 
@@ -22,6 +24,8 @@ async def test_eiger_initialize(eiger: EigerDevice):
 
 @pytest.mark.asyncio
 async def test_eiger_arm(eiger: EigerDevice):
+    eiger.stream_config.header_detail = "all"
+
     await eiger.arm()
 
     assert State.READY.value == eiger.get_state()["value"]
@@ -97,3 +101,42 @@ def test_eiger_set_state(eiger: EigerDevice):
     eiger._set_state(State.IDLE)
 
     assert State.IDLE.value == eiger.get_state()["value"]
+
+
+def test_eiger_update_not_aquiring(eiger: EigerDevice):
+
+    eiger._set_state(State.IDLE)
+
+    time = None
+    device_input = {"bleep", "bloop"}
+
+    update: DeviceUpdate = eiger.update(time, device_input)
+    assert update.outputs == {}
+
+
+def test_eiger_update_aquiring(eiger: EigerDevice):
+
+    eiger._set_state(State.ACQUIRE)
+
+    eiger._num_frames_left = 1
+
+    time = SimTime(int(1e8))
+    device_input = {"bleep", "bloop"}
+
+    update: DeviceUpdate = eiger.update(time, device_input)
+    assert update.outputs == {}
+
+
+def test_eiger_update_aquiring_no_frames_left(eiger: EigerDevice):
+
+    eiger._set_state(State.ACQUIRE)
+
+    eiger._num_frames_left = 0
+
+    time = None
+    device_input = {"bleep", "bloop"}
+
+    update: DeviceUpdate = eiger.update(time, device_input)
+
+    assert eiger.get_state()["value"] == State.IDLE.value
+    assert update.outputs == {}
