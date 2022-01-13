@@ -35,8 +35,7 @@ async def mock_process_message_queue() -> AsyncMock:
 @pytest.fixture
 def zeromq_adapter() -> ZeroMQAdapter:
     zmq_adapter = ZeroMQAdapter()
-    zmq_adapter._dealer = AsyncMock()
-    zmq_adapter._router = AsyncMock()
+    zmq_adapter._socket = AsyncMock()
     zmq_adapter._message_queue = Mock(asyncio.Queue)
     return zmq_adapter
 
@@ -49,8 +48,7 @@ def test_zeromq_adapter_constructor():
 async def test_zeromq_adapter_start_stream(zeromq_adapter):
     await zeromq_adapter.start_stream()
 
-    assert isinstance(zeromq_adapter._router, aiozmq.stream.ZmqStream)
-    assert isinstance(zeromq_adapter._dealer, aiozmq.stream.ZmqStream)
+    assert isinstance(zeromq_adapter._socket, aiozmq.stream.ZmqStream)
 
     await zeromq_adapter.close_stream()
 
@@ -62,8 +60,7 @@ async def test_zeromq_adapter_close_stream(zeromq_adapter):
     await zeromq_adapter.close_stream()
     await asyncio.sleep(0.1)
 
-    assert None is zeromq_adapter._router._transport
-    assert None is zeromq_adapter._dealer._transport
+    assert None is zeromq_adapter._socket._transport
 
 
 @pytest.mark.asyncio
@@ -80,7 +77,7 @@ async def test_zeromq_adapter_send_message(zeromq_adapter):
     zeromq_adapter.send_message(mock_message)
     task = asyncio.current_task()
     asyncio.gather(task)
-    zeromq_adapter._message_queue.put.assert_called_once()
+    zeromq_adapter._message_queue.put_nowait.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -118,15 +115,11 @@ async def test_zeromq_adapter_process_message_queue(zeromq_adapter):
 @pytest.mark.asyncio
 async def test_zeromq_adapter_process_message(zeromq_adapter):
 
-    mock_message = "test"
-
-    zeromq_adapter._dealer.read.return_value = ("Data", "test")
-    zeromq_adapter._router.read.return_value = ("Data", "test")
+    mock_message = [b"test"]
 
     await zeromq_adapter._process_message(mock_message)
 
-    zeromq_adapter._dealer.read.assert_awaited_once()
-    zeromq_adapter._router.read.assert_awaited_once()
+    zeromq_adapter._socket.write.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -134,8 +127,7 @@ async def test_zeromq_adapter_process_message_no_message(zeromq_adapter, caplog)
 
     mock_message = None
 
-    zeromq_adapter._dealer.read.return_value = ("Data", None)
-    zeromq_adapter._router.read.return_value = ("Data", None)
+    zeromq_adapter._socket.read.return_value = ("Data", None)
 
     with caplog.at_level(logging.DEBUG):
         await zeromq_adapter._process_message(mock_message)

@@ -27,7 +27,7 @@ class MockAdapter(HTTPAdapter):
 
     device: Device
 
-    @HTTPEndpoint.get("/mock_endpoint")
+    @HTTPEndpoint.get("/mock_endpoint", interrupt=True)
     async def mock_endpoint(request: web.Request) -> web.Response:
         return web.Response(text="test")
 
@@ -63,9 +63,12 @@ async def test_http_adapter_run_forever_method(
 
 
 @pytest.mark.asyncio
-async def test_http_adapter_endpoints():
+async def test_http_adapter_endpoints(
+    mock_device: Device, mock_raise_interrupt: Mock, patch_asyncio_event_wait: Mock
+):
 
-    adapter = MockAdapter()
+    adapter = MockAdapter(port=8081)
+    await adapter.run_forever(mock_device, mock_raise_interrupt)
 
     resp = await list(adapter.endpoints())[0].handler()
 

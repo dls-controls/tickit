@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from dataclasses import dataclass
-from typing import Any
+from typing import Iterable
 
 import aiozmq
 import zmq
@@ -9,7 +9,7 @@ import zmq
 from tickit.core.adapter import Adapter, RaiseInterrupt
 from tickit.core.device import Device
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = logging.getLogger("ZmqAdapter")
 
 
 @dataclass
@@ -23,21 +23,19 @@ class ZeroMQAdapter(Adapter):
     async def start_stream(self) -> None:
         """Start the ZeroMQ stream."""
         LOGGER.debug("Starting stream...")
-        self._router = await aiozmq.create_zmq_stream(
-            zmq.ROUTER, bind=f"tcp://{self.zmq_host}:{self.zmq_port}"
-        )
 
-        addr = list(self._router.transport.bindings())[0]
-        self._dealer = await aiozmq.create_zmq_stream(zmq.DEALER, connect=addr)
+        self._socket = await aiozmq.create_zmq_stream(
+            zmq.PUSH, bind=f"tcp://{self.zmq_host}:{self.zmq_port}"
+        )
+        LOGGER.debug(f"Stream started. {self._socket}")
 
     async def close_stream(self) -> None:
         """Close the ZeroMQ stream."""
-        self._dealer.close()
-        self._router.close()
+        self._socket.close()
 
         self.running = False
 
-    def send_message(self, message: Any) -> None:
+    def send_message(self, message: bytes) -> None:
         """Send a message down the ZeroMQ stream.
 
         Sets up an asyncio task to put the message on the message queue, before
@@ -46,7 +44,7 @@ class ZeroMQAdapter(Adapter):
         Args:
             message (str): The message to send down the ZeroMQ stream.
         """
-        asyncio.create_task(self._message_queue.put(message))
+        self._message_queue.put_nowait(message)
 
     async def run_forever(
         self, device: Device, raise_interrupt: RaiseInterrupt
@@ -69,15 +67,9 @@ class ZeroMQAdapter(Adapter):
             await self._process_message(message)
             running = self.check_if_running()
 
-    async def _process_message(self, message: str) -> None:
+    async def _process_message(self, message: Iterable[bytes]) -> None:
         if message is not None:
-            LOGGER.debug("Data from ZMQ stream: {!r}".format(message))
 
-            msg = (b"Data", str(message).encode("utf-8"))
-            self._dealer.write(msg)
-            data = await self._router.read()
-            self._router.write(data)
-            answer = await self._dealer.read()
-            LOGGER.debug("Received {!r}".format(answer))
+            self._socket.write(message)
         else:
             LOGGER.debug("No message")

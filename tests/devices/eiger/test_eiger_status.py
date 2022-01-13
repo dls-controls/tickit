@@ -15,4 +15,4 @@ def test_eiger_status_constructor():
 
 
 def test_eiger_status_getitem(eiger_status):
-    assert 24.5 == eiger_status["th0_temp"]
+    assert 24.5 == eiger_status["th0_temp"]["value"]

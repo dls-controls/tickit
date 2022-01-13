@@ -9,7 +9,7 @@ class MonitorConfig:
     """Eiger monitor configuration taken from the API spec."""
 
     mode: str = field(
-        default="enabled", metadata=rw_str(allowed_values=["disabled", "enabled"])
+        default="enabled", metadata=rw_str(allowed_values=["enabled", "disabled"])
     )
     buffer_size: int = field(default=512, metadata=rw_int())
 
@@ -21,3 +21,6 @@ class MonitorConfig:
                 "metadata": field_.metadata,
             }
         return f[key]
+
+    def __setitem__(self, key: str, value: Any) -> None:  # noqa: D105
+        self.__dict__[key] = value
