@@ -74,11 +74,6 @@ def test_epics_adapter_after_update_method(
     input_record.set.assert_called()
 
 
-def test_epics_adapter_on_db_load_method(epics_adapter: EpicsAdapter):
-    with pytest.raises(NotImplementedError):
-        epics_adapter.on_db_load()
-
-
 def record_db_file_contents() -> Dict[str, bytes]:
     return {
         "data": b"""record(ao, "$(device):GAIN") {
