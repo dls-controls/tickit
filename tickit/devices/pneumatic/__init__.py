@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from pathlib import Path
 
 from tickit.core.components.component import Component, ComponentConfig
 from tickit.core.components.device_simulation import DeviceSimulation
@@ -12,7 +13,7 @@ class Pneumatic(ComponentConfig):
 
     initial_speed: float = 2.5
     initial_state: bool = False
-    db_file: str = "tickit/devices/pneumatic/db_files/filter1.db"
+    db_file: Path = Path("tickit/devices/pneumatic/db_files/filter1.db")
     ioc_name: str = "PNEUMATIC"
 
     def __call__(self) -> Component:  # noqa: D102

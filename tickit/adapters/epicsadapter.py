@@ -1,11 +1,10 @@
 import asyncio
 import os
 import re
-from abc import abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Any, Callable, Dict, List, Mapping, Optional
+from typing import Any, Callable, Dict, Mapping
 
 from softioc import asyncio_dispatcher, builder, softioc
 

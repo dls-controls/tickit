@@ -1,6 +1,9 @@
+from pathlib import Path
+
 from softioc import builder
 
 from tickit.adapters.epicsadapter import EpicsAdapter
+from tickit.core.adapter import RaiseInterrupt
 from tickit.core.device import Device, DeviceUpdate
 from tickit.core.typedefs import SimTime
 from tickit.utils.compat.typing_compat import TypedDict
@@ -77,6 +80,11 @@ class PneumaticAdapter(EpicsAdapter):
     """
 
     device: PneumaticDevice
+    db_file: Path
+
+    def __init__(self, ioc_name: str, db_file: Path) -> None:  # noqa: D107
+        super().__init__(ioc_name)
+        self.db_file = db_file
 
     async def callback(self, value) -> None:
         """Set the state of the device and await a response.
@@ -87,9 +95,13 @@ class PneumaticAdapter(EpicsAdapter):
         self.device.set_state()
         await self.raise_interrupt()
 
-    def on_db_load(self):
-        """Adds a record of the current state to the mapping of interrupting records."""
+    async def run_forever(
+        self, device: Device, raise_interrupt: RaiseInterrupt
+    ) -> None:  # noqa: D102
+        await super().run_forever(device, raise_interrupt)
+        EpicsAdapter.load_records(self.db_file, {"device": self.ioc_name})
         builder.boolOut("FILTER", initial_value=False, on_update=self.callback)
         self.link_input_on_interrupt(
             builder.boolIn("FILTER_RBV"), self.device.get_state
         )
+        self.build_ioc()
