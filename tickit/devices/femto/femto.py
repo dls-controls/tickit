@@ -1,6 +1,9 @@
+from pathlib import Path
+
 from softioc import builder
 
 from tickit.adapters.epicsadapter import EpicsAdapter
+from tickit.core.adapter import RaiseInterrupt
 from tickit.core.device import Device, DeviceUpdate
 from tickit.core.typedefs import SimTime
 from tickit.utils.compat.typing_compat import TypedDict
@@ -86,6 +89,23 @@ class FemtoAdapter(EpicsAdapter):
     """The adapter for the Femto device."""
 
     device: FemtoDevice
+    db_file: Path
+
+    def __init__(self, ioc_name: str, db_file: Path) -> None:  # noqa: D107
+        super().__init__(ioc_name)
+        self.db_file = db_file
+
+    async def run_forever(
+        self, device: Device, raise_interrupt: RaiseInterrupt
+    ) -> None:  # noqa: D102
+        await super().run_forever(device, raise_interrupt)
+        EpicsAdapter.load_records(self.db_file, {"device": self.ioc_name})
+        builder.aOut(
+            "GAIN", initial_value=self.device.get_gain(), on_update=self.callback
+        )
+        self.link_input_on_interrupt(builder.aIn("GAIN_RBV"), self.device.get_gain)
+        self.link_input_on_interrupt(builder.aIn("CURRENT"), self.device.get_current)
+        self.build_ioc()
 
     async def callback(self, value) -> None:
         """Device callback function.
@@ -95,11 +115,3 @@ class FemtoAdapter(EpicsAdapter):
         """
         self.device.set_gain(value)
         await self.raise_interrupt()
-
-    def on_db_load(self) -> None:
-        """Customises records that have been loaded in to suit the simulation."""
-        builder.aOut(
-            "GAIN", initial_value=self.device.get_gain(), on_update=self.callback
-        )
-        self.link_input_on_interrupt(builder.aIn("GAIN_RBV"), self.device.get_gain)
-        self.link_input_on_interrupt(builder.aIn("CURRENT"), self.device.get_current)

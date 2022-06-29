@@ -3,8 +3,9 @@ import os
 import re
 from abc import abstractmethod
 from dataclasses import dataclass
+from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, List, Mapping, Optional
 
 from softioc import asyncio_dispatcher, builder, softioc
 
@@ -31,14 +32,13 @@ class OutputRecord:
 class EpicsAdapter(Adapter):
     """An adapter implementation which acts as an EPICS IOC."""
 
-    def __init__(self, db_file: str, ioc_name: str) -> None:
+    def __init__(self, ioc_name: str) -> None:
         """An EpicsAdapter constructor which stores the db_file path and the IOC name.
 
         Args:
             db_file (str): The path to the db_file.
             ioc_name (str): The name of the EPICS IOC.
         """
-        self.db_file = db_file
         self.ioc_name = ioc_name
         self.interrupt_records: Dict[InputRecord, Callable[[], Any]] = {}
 
@@ -60,28 +60,29 @@ class EpicsAdapter(Adapter):
             record.set(current_value)
             print("Record {} updated to : {}".format(record.name, current_value))
 
-    @abstractmethod
-    def on_db_load(self) -> None:
-        """Customises records that have been loaded in to suit the simulation."""
-        raise NotImplementedError
-
-    def load_records_without_DTYP_fields(self):
+    @staticmethod
+    def load_records(
+        db_file: Path,
+        substitutions: Mapping[str, str] = {},
+        remove_dtypes: bool = False,
+    ):
         """Loads the records without DTYP fields."""
-        with open(self.db_file, "rb") as inp:
+        with db_file.open("rb") as inp:
             with NamedTemporaryFile(suffix=".db", delete=False) as out:
-                for line in inp.readlines():
-                    if not re.match(rb"\s*field\s*\(\s*DTYP", line):
-                        out.write(line)
+                if remove_dtypes:
+                    for line in inp.readlines():
+                        if not re.match(rb"\s*field\s*\(\s*DTYP", line):
+                            out.write(line)
 
-        softioc.dbLoadDatabase(out.name, substitutions=f"device={self.ioc_name}")
+        substitutions_str = ",".join(
+            [f"{key}={value}" for key, value in substitutions.items()]
+        )
+        softioc.dbLoadDatabase(out.name, substitutions=substitutions_str)
         os.unlink(out.name)
 
     def build_ioc(self) -> None:
         """Builds an EPICS python soft IOC for the adapter."""
         builder.SetDeviceName(self.ioc_name)
-
-        self.load_records_without_DTYP_fields()
-        self.on_db_load()
 
         softioc.devIocStats(self.ioc_name)
 
@@ -95,4 +96,3 @@ class EpicsAdapter(Adapter):
     ) -> None:
         """Runs the server continously."""
         await super().run_forever(device, raise_interrupt)
-        self.build_ioc()
