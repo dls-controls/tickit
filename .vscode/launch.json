@@ -26,6 +26,13 @@
             "args": ["all", "examples/configs/nested.yaml"]
         },
         {
+            "name":"Pneumatic",
+            "type":"python",
+            "request":"launch",
+            "module":"tickit",
+            "args": ["all", "examples/configs/attns.yaml"]
+        },
+        {
             "name":"Python: Current File",
             "type":"python",
             "request":"launch",

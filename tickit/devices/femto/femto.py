@@ -99,7 +99,9 @@ class FemtoAdapter(EpicsAdapter):
         self, device: Device, raise_interrupt: RaiseInterrupt
     ) -> None:  # noqa: D102
         await super().run_forever(device, raise_interrupt)
-        EpicsAdapter.load_records(self.db_file, {"device": self.ioc_name})
+        EpicsAdapter.load_records(
+            self.db_file, {"device": self.ioc_name}, remove_dtypes=True
+        )
         builder.aOut(
             "GAIN", initial_value=self.device.get_gain(), on_update=self.callback
         )

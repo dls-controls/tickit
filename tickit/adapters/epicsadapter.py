@@ -66,9 +66,10 @@ class EpicsAdapter(Adapter):
         remove_dtypes: bool = False,
     ):
         """Loads the records without DTYP fields."""
-        with db_file.open("rb") as inp:
-            with NamedTemporaryFile(suffix=".db", delete=False) as out:
-                if remove_dtypes:
+        if remove_dtypes:
+            with db_file.open("rb") as inp:
+                with NamedTemporaryFile(suffix=".db", delete=False) as out:
+                    db_file = Path(out.name)
                     for line in inp.readlines():
                         if not re.match(rb"\s*field\s*\(\s*DTYP", line):
                             out.write(line)
@@ -76,8 +77,8 @@ class EpicsAdapter(Adapter):
         substitutions_str = ",".join(
             [f"{key}={value}" for key, value in substitutions.items()]
         )
-        softioc.dbLoadDatabase(out.name, substitutions=substitutions_str)
-        os.unlink(out.name)
+        softioc.dbLoadDatabase(str(db_file), substitutions=substitutions_str)
+        os.unlink(str(db_file))
 
     def build_ioc(self) -> None:
         """Builds an EPICS python soft IOC for the adapter."""

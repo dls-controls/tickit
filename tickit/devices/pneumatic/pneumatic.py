@@ -99,7 +99,9 @@ class PneumaticAdapter(EpicsAdapter):
         self, device: Device, raise_interrupt: RaiseInterrupt
     ) -> None:  # noqa: D102
         await super().run_forever(device, raise_interrupt)
-        EpicsAdapter.load_records(self.db_file, {"device": self.ioc_name})
+        EpicsAdapter.load_records(
+            self.db_file, {"device": self.ioc_name}, remove_dtypes=True
+        )
         builder.boolOut("FILTER", initial_value=False, on_update=self.callback)
         self.link_input_on_interrupt(
             builder.boolIn("FILTER_RBV"), self.device.get_state
