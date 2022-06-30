@@ -20,7 +20,7 @@ def MockInterpreter() -> Mock:
 
 @pytest.fixture
 def epics_adapter() -> EpicsAdapter:
-    return EpicsAdapter("db_file", "ioc_name")  # type: ignore
+    return EpicsAdapter("ioc_name")  # type: ignore
 
 
 @pytest.fixture
@@ -125,10 +125,13 @@ def test_epics_adapter_load_records_without_DTYP_fields_method(
 ):
 
     data = test_params["data"]
-    with patch("builtins.open", mock_open(read_data=data)):
-        with patch("os.unlink") as mock_unlink:
-            epics_adapter.load_records_without_DTYP_fields()
-            unlink_args = mock_unlink.call_args.args
+    path = MagicMock()
+    path.open = mock_open(read_data=data)
+    with patch("os.unlink") as mock_unlink:
+        epics_adapter.load_records(
+            path, substitutions={"device": "test"}, remove_dtypes=True
+        )
+        unlink_args = mock_unlink.call_args.args
 
     out_filename = unlink_args[0]
     written_data = open(out_filename, "rb").read()
