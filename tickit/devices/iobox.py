@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, Generic, List, Tuple, TypeVar
+from typing import Dict, Generic, List, Tuple, TypeVar
 
 from tickit.core.components.component import Component, ComponentConfig
 from tickit.core.components.device_simulation import DeviceSimulation
@@ -45,7 +45,7 @@ class IoBoxDevice(Device, Generic[A, V]):
     _memory: Dict[A, V]
     _change_buffer: List[Tuple[A, V]]
 
-    def __init__(self) -> None:
+    def __init__(self) -> None:  # noqa: D107
         self._memory = {}
         self._change_buffer = []
 
