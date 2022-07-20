@@ -28,7 +28,10 @@ COPY . ${TICKIT_DIR}
 
 RUN python3.7 -m pip install tickit
 
+# Print help message
 CMD ["python3.7", "-m", "tickit"]
+
+ENTRYPOINT ["python3.7", "-m", "tickit"]
 
 ##### Developer Base Stage #############################################################
 FROM base AS base_dev
@@ -49,3 +52,5 @@ COPY . ${TICKIT_DIR}
 RUN python3.7 -m pip install tickit
 
 CMD ["python3.7", "-m", "tickit"]
+
+ENTRYPOINT ["python3.7", "-m", "tickit"]
