@@ -17,7 +17,7 @@ class IoBoxDevice(Device, Generic[A, V]):
     """A simple device which can take and store key-value pairs.
 
     Adapter should write values to the device via device.write(addr, value)
-    or device[addr] = value. The writes will be pending until the adapter
+    or device[addr] = value. The writes will be pending until the scheduler
     interrupts the device. For example:
 
     ```python
