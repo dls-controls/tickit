@@ -2,11 +2,15 @@ from dataclasses import dataclass
 from typing import Callable, Optional, Sequence
 
 import pytest
-from mock import AsyncMock, MagicMock
+from mock import AsyncMock, MagicMock, patch
 
 from tickit.adapters.interpreters.command import CommandInterpreter
 from tickit.adapters.interpreters.command.command_interpreter import Command
 from tickit.core.adapter import Adapter
+
+_GET_TYPE_HINTS = (
+    "tickit.adapters.interpreters.command.command_interpreter.get_type_hints"
+)
 
 
 @pytest.fixture
@@ -33,6 +37,10 @@ def TestCommand():
     return TestCommand
 
 
+@patch(
+    _GET_TYPE_HINTS,
+    lambda _: {"arg1": str, "arg2": str},
+)
 @pytest.mark.asyncio
 async def test_command_interpreter_handle_calls_func_with_args(
     command_interpreter: CommandInterpreter,
@@ -51,6 +59,10 @@ async def test_command_interpreter_handle_calls_func_with_args(
     test_adapter.test_method.assert_awaited_once_with("arg1", "arg2")
 
 
+@patch(
+    _GET_TYPE_HINTS,
+    lambda _: {"arg1": str, "arg2": str},
+)
 @pytest.mark.asyncio
 async def test_command_interpreter_handle_returns_iterable_reply(
     command_interpreter: CommandInterpreter,
@@ -70,6 +82,10 @@ async def test_command_interpreter_handle_returns_iterable_reply(
     assert reply == (await command_interpreter.handle(test_adapter, b"\x01"))[0]
 
 
+@patch(
+    _GET_TYPE_HINTS,
+    lambda _: {"arg1": str, "arg2": str},
+)
 @pytest.mark.asyncio
 async def test_command_interpreter_handle_wraps_non_iterable_reply(
     command_interpreter: CommandInterpreter,
@@ -94,6 +110,10 @@ async def test_command_interpreter_handle_wraps_non_iterable_reply(
     )
 
 
+@patch(
+    _GET_TYPE_HINTS,
+    lambda _: {"arg1": str, "arg2": str},
+)
 @pytest.mark.asyncio
 @pytest.mark.parametrize("interrupt", [True, False])
 async def test_command_interpreter_handle_returns_interupt(

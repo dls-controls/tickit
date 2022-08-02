@@ -1,6 +1,6 @@
 from abc import abstractmethod
 from inspect import getmembers
-from typing import AnyStr, AsyncIterable, Optional, Sequence, Tuple
+from typing import AnyStr, AsyncIterable, Optional, Sequence, Tuple, get_type_hints
 
 from tickit.core.adapter import Adapter, Interpreter
 from tickit.utils.compat.typing_compat import Protocol, runtime_checkable
@@ -90,6 +90,10 @@ class CommandInterpreter(Interpreter[AnyStr]):
             args = command.parse(message)
             if args is None:
                 continue
+            args = (
+                argtype(arg)
+                for arg, argtype in zip(args, get_type_hints(method).values())
+            )
             resp = await method(*args)
             if not isinstance(resp, AsyncIterable):
                 resp = CommandInterpreter._wrap(resp)
